@@ -1,0 +1,76 @@
+// difusion transporte con implementacion derivada parcial, cond conctorno de conveccion a la salida
+
+//Definimos el dominio de estudio, creamos la malla y la dibujamos
+//----------------------------------------------------------------
+border a(t=0,10) {x=t;y=0;label=1;};
+border b(t=0,4) {x=10;y=t;label=5;}; //Salida de aire
+border c(t=10,0) {x=t;y=4;label=3;};
+border d(t=4,0) {x=0;y=t;label=4;};//Entrada de aire
+
+
+int n=80;
+mesh malla = buildmesh(a(n)+b(n)+c(n)+d(n));
+plot(malla, wait=1);
+
+//Definimos el problema que queremos resolver
+//-------------------------------------------
+fespace Vh(malla,P2);
+Vh u,v,kx,ky,u1,u2,uoldt,uu; // u es temperatura en grados Celsius  , añadido uoldt que es la solucion u en la iteracion anterior en bucle abajo
+
+//Conductividad térmica constante
+kx=0.02624;  
+ky=0.02624;
+real hc=8.; //Coeficiente de convección   W/m2
+
+real uf=30.; 
+// temperatura del aire exterior a la salida
+
+real densidad,cp;
+densidad=1.1769;
+cp=1.0073;
+real A;
+A= densidad*cp;
+
+u2=0; // u2 es cero, la componente vertical del vector velocidad es cero 
+u1=-0.75*y*(y-4); // componente horizontal, obtuvimos para que en el centro la v max fuera 3 m/s
+
+real dt=0.1;
+
+real alpha=1/dt;
+
+problem calor(u,v) = 
+int2d (malla) (A*u*v/dt)- int2d(malla) (A*alpha*convect([u1,u2],-dt,uoldt)*v) //derivada total
+
++ int2d(malla)(kx*dx(u)*dx(v)+ky*dy(u)*dy(v))
++ int1d(malla,5) (hc*u*v) - int1d(malla,5) (hc*uf*v)
++ on(4,u=20);  // aire entra a 20 grados
+
+
+plot([u1,u2], wait=1);
+
+
+int m=0;
+real tfinal=100; // tiempo final de simulacion      
+
+int iter;
+
+for (real t=0;t<tfinal;t += dt)
+{
+iter=iter+1;  // contador de iteraciones
+t += dt;
+calor; // CALCULA u
+uoldt=u; 
+
+
+if ( !(iter % 4)) //cada multiplo de 8 imprime el plot de la linea siguiente
+plot(u, cmm=" tiempo ="+t,value=1);
+
+malla = adaptmesh(malla,u,err=0.01,hmax=0.1,hmin=0.001,cutoff=1e-6,ratio=1.6,nbvx=40000,  // ADAPTACION DE MALLA
+splitpbedge=2,power=1,abserror=true,nomeshgeneration=false,anisomax=1);
+
+if ( !(iter % 8)) //cada multiplo de 8 imprime el plot de la linea siguiente
+plot (malla,cmm=" tiempo ="+t);
+
+} 
+
+

@@ -1,0 +1,130 @@
+// coefte reaccion o supervivencia decreciente en el tiempo (caso practico aqui sea C concentrac de un contaminante)
+
+real r=0.1;
+
+//Definimos el dominio de estudio, creamos la malla y la dibujamos   OJO VER LABELS 1 entrada 3 salida  4 superior  2 inferior
+//----------------------------------------------------------------
+border a(t=0,10) {x=t;y=0;label=2;};
+border b(t=0,4) {x=10;y=t;label=3;}; //Salida de aire
+border c(t=10,0) {x=t;y=4;label=4;};
+border d(t=4,0) {x=0;y=t;label=1;};//Entrada de aire
+
+int n=80;
+mesh Th = buildmesh(a(n)+b(n)+c(n)+d(n));
+plot(Th, wait=1);
+
+//Definimos el problema que queremos resolver
+//-------------------------------------------
+fespace Vh(Th,P1);
+Vh C,v,kx,ky,u1,u2,Coldt; // u es temperatura en grados Celsius  , añadido uoldt que es la solucion u en la iteracion anterior en bucle abajo
+
+real aa=1; // parametros para modelar uoldt  , solucion en el tiempo inicial
+real bb=2;
+real h=20;
+real F=10;
+
+Coldt = F*exp(-h*((x-aa)^2 +(y-bb)^2));  // contaminacion inicial en t=0
+
+kx=0.02624;  
+ky=0.02624;
+
+
+// OPCION METODOLOGICA ELEGIDA :
+// CALCULAMOS LA VELOCIDAD ESTACIONARIA CON NAVIER STOKES
+// SE RESUELVE PROBLEMA DIFUSION TRANSPORTE REACCION CON LA VELOCIDAD ESTACIONARIA
+
+real area= int2d(Th)(1.);  // el metodo usa en los calculos el area del dominio
+
+
+// ****************   Navier Stokes  *****************
+
+
+real nu = 0.000016; 
+
+// nu es la viscosidad cinematica del fluido 
+
+Vh w, p = 0, q=0; // variables de calculo posteriormente
+
+u2=0; // u2 es cero, la componente vertical del vector velocidad es cero 
+
+int iter=0;
+
+
+/* tiempo de simulacion debemos fijarlo más de 3 s , porque L=10m   Vmax es aproximadamente 3 m/s, como primera prueba 4 s     
+*/
+
+real t, tmax=1;
+real dt=0.01; // en general entre 0.01   y 0.005
+real alpha=1/dt;
+
+for(t=0;t<tmax;t+=dt)
+{
+	iter=iter+1;
+
+Vh u1old = u1, u2old = u2, pold=p;
+Vh f=convect([u1,u2],-dt,u1old), g=convect([u1,u2],-dt,u2old); // para uso en calculo de algunas integrales
+
+solve pb4u(u1,w,init=n,solver=LU)                         // CALCULA LA COMPONENTE u1 del vector velocidad
+=int2d(Th)(u1*w/dt +nu*(dx(u1)*dx(w)+dy(u1)*dy(w)))
+-int2d(Th)((f/dt-dx(p))*w)
++ on(1,u1=-0.75*y*(y-4))          // componente horizontal, obtuvimos para que en el centro la u1 max fuera 3 m/s
++ on(2,4,u1 = 0) 	         // EN CONTORNOS SOLIDOS VELOCIDAD NULA
++ on(3,u1=f);   		         // condicion siempre de este metodo, el borde de salida que etiquetaremos siempre con label 3  
+					 
+solve pb4v(u2,w,init=n,solver=LU)                                // CALCULA LA COMPONENTE u2 del vector velocidad
+= int2d(Th)(u2*w/dt +nu*(dx(u2)*dx(w)+dy(u2)*dy(w)))
+-int2d(Th)((g/dt-dy(p))*w)
++on(1,4,2,u2=0)     // VELOCIDAD DE ENTRADA (label 1) HORIZONTAL  , EN CONTORNOS SOLIDOS VELOCIDAD NULA
++on(3,u2=g);          // condicion siempre de este metodo, el borde de salida que etiquetaremos siempre con label 3  
+
+real meandiv = int2d(Th)(dx(u1)+dy(u2))/area;
+
+solve pb4p(q,w,init=n,solver=LU)= int2d(Th)(dx(q)*dx(w)+dy(q)*dy(w))         // CALCULA la presion, que luego se recalcula y se denominara p
+- int2d(Th)((dx(u1)+ dy(u2)-meandiv)*w/dt)+ on(3,q=0);
+
+real meanpq = int2d(Th)(pold - q)/area;
+
+p = pold-q-meanpq;  	// presion recalculada
+u1 = u1 + dx(q)*dt;   	// u1 componente en ejex del vector velocidad
+u2 = u2 + dy(q)*dt;  	// u2 componente en ejex del vector velocidad
+
+if ( !(iter % 20)) //cada multiplo de 20 imprime el plot de la linea siguiente
+plot([u1,u2],cmm=" tiempo ="+t,value=1);
+
+}
+
+real densidad,cp;
+densidad=1.1769;
+cp=1.0073;
+real A;
+A= densidad*cp;
+
+
+
+// ****************  fin Navier Stokes ****************
+
+// AHORA RESOLVEMOS EL PROBLEMA DE CALCULO CONCENTRACION CONTAMINANTE CON TRANSPORTE DIFUSION REACCION Y CALCULO EVOLUTIVO CON DER TOTAL
+
+problem difutransreac(C,v) =    // v funcion test del metodo de elementos finitos
+
+int2d (Th) (A*C*v/dt)- int2d(Th) (A*alpha*convect([u1,u2],-dt,Coldt)*v) //derivada total
++ int2d(Th)(kx*dx(C)*dx(v)+ky*dy(C)*dy(v)) // kx,ky son ctes de difusion en direcc x e y , asi ya tenido en cuenta densidad y capac calorif
++ int2d(Th)(r*C*v)
++ on(1,C=0);                // aire entra sin contaminacion
+
+int m=0;
+real tfinal=4; // tiempo final de simulacion lo sufiente grande para ver que tiende a cero en el limite  
+
+dt=0.01;
+for (real t=0;t<tfinal;t += dt)
+{
+t += dt;
+
+difutransreac; // CALCULA Concentracion C que evoluciona transportandose difundiendose y con decaimiento en el tiempo
+Coldt=C; 
+
+plot(C,cmm=" t="+t + ", min=" + C[].min + ", max=" + C[].max, nbiso=80);
+
+} 
+
+

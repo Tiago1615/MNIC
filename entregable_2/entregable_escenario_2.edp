@@ -1,0 +1,119 @@
+// difusion transporte REACCION O DECAIMIENTO EN EL TIEMPO con implementacion derivada TOTAL, cond conctorno de conveccion a la salida
+// CON ADAPTACION DE MALLA
+
+//Definimos el dominio de estudio, creamos la malla y la dibujamos
+//----------------------------------------------------------------
+
+// Contorno inferior
+border a(t=0, 2) {
+    x=t;
+    y=0;
+    label=1;
+};
+
+//Salida de aire
+border b(t=0, 0.5) {
+    x=2;
+    y=t;
+    label=5;
+};
+
+// Contorno superior
+border c(t=2, 0) {
+    x=t;
+    y= 0.375 + 0.125 * (sin(pi * (x + 0.5)));;
+    label=3;
+};
+
+//Entrada de aire
+border d(t=0.5, 0) {
+    x=0;
+    y=t;
+    label=4;
+};
+
+
+int n=80;
+mesh malla = buildmesh(a(n) + b(n) + c(n) + d(n));
+plot(malla, wait=1);
+
+//Definimos el problema que queremos resolver
+//-------------------------------------------
+fespace Vh(malla,P2);
+Vh u,v,kx,ky,u1,u2,uoldt,uu; // u es temperatura en grados Celsius  , añadido uoldt que es la solucion u en la iteracion anterior en bucle abajo
+
+//Conductividad térmica constante
+kx=0.02624;  
+ky=0.02624;
+real hc=10.; //Coeficiente de convección   W/m2
+
+real uf=25.; 
+// temperatura del aire exterior a la salida
+
+real densidad,cp;
+densidad=1.1769;
+cp=1.0073;
+real A;
+A= densidad*cp;
+
+// componente horizontal, obtuvimos para que en el centro la v max fuera 3 m/s
+u1 = 4*3*(y/0.5)*(1 - y/0.5);
+
+// u2 es cero, la componente vertical del vector velocidad es cero 
+u2=0;
+
+real dt = 0.01;
+real r = 0.001;
+
+real AA = 100000000;
+real h = 1000;
+real aa = 1;
+real bb = 0.125;
+
+uoldt = AA * exp( -h * ((x - aa)^2 + (y - bb)^2));
+
+real alpha=1/dt;
+
+problem calor(u,v) = 
+    int2d (malla) (A*u*v/dt)- int2d(malla) (A*alpha*convect([u1,u2],-dt,uoldt)*v) //derivada total
+
+    + int2d(malla)(kx*dx(u)*dx(v)+ky*dy(u)*dy(v))
+    + int2d(malla)(r*u*v)
+    + on(4, u=0); // CONTAMINACION CERO A LA ENTRADA  , FLUJO LIBRE A LA SALIDA 
+plot([u1,u2], wait=1);
+
+
+int m=0;
+real tfinal=100; // tiempo final de simulacion      
+
+int iter;
+
+for (real t=0;t<tfinal;t += dt)
+{
+    iter=iter+1;  // contador de iteraciones
+    calor; // CALCULA u
+    uoldt=u; 
+
+
+    if (!(iter % 2)) //cada multiplo de 2 imprime el plot de la linea siguiente
+    plot(u, cmm=" tiempo ="+t,value=1);
+
+    malla = adaptmesh(
+        malla,
+        u,
+        err=0.001,
+        hmax=0.1,
+        hmin=0.001,
+        cutoff=1e-6,
+        ratio=1.6,
+        nbvx=20000,  // ADAPTACION DE MALLA
+        splitpbedge=2,
+        power=1,
+        abserror=true,
+        nomeshgeneration=false,
+        anisomax=1
+    );
+
+    if ( !(iter % 5)) //cada multiplo de 5 imprime el plot de la linea siguiente
+    plot (malla,cmm=" tiempo ="+t);
+} 

@@ -1,0 +1,113 @@
+/* 
+   ECUACIÓN DIFERENCIAL DE SEGUNDO ORDEN
+   t^2 y'' - 2t y' + 2y = t^3 ln(t)
+   y(1)=1, y'(1)=0, h=0.1
+*/
+
+// Definición del paso y rango de integración
+real X, XF, XI, N, h;
+XI = 1;
+XF = 2;
+N = 10;
+h = (XF - XI) / N;
+
+// Salida de los parámetros iniciales
+cout << " XI = " << XI << endl;
+cout << " XF = " << XF << endl;
+cout << " N = " << N << endl;
+cout << " h = " <<h << endl << endl;
+
+// Sistema de ecuaciones de primer orden equivalente
+func real f1(real X, real Y1, real Y2) { 
+        return (Y2);
+}  
+
+func real f2(real X, real Y1, real Y2) {
+        return ( (2 * X * Y2 - 2 * Y1 + pow(X, 3) * log(X)) / pow(X, 2) );
+}
+
+// Solución real para comparación
+func real realSolution(real X){
+        return ( 1.75 * X + 0.5 * pow(X, 3) * log(X) - 0.75 * pow(X, 3) );
+}
+
+// Variables para los coeficientes de Runge-Kutta
+real k11,k21,k12,k22,k13,k23,k14,k24;
+real Z1,Z2;
+
+// Variables para la solución y el error
+real solution;
+real error;
+
+// Inicialización de las condiciones iniciales (Y1 = y, Y2 = y')
+real Y1 = 1;           // y(1) = 1
+real Y2 = 0;           // y'(1) = 0
+X=XI;                  // Inicio del intervalo
+
+// Salida de las condiciones iniciales
+cout << " y(1) = " << Y1 << endl;
+cout << " y'(1) = " << Y2 << endl << endl;
+
+// Escritura de resultados con 6 decimales y formato fijo (no científico)
+ofstream results("resultados/Runge Kutta EDO orden dos.txt");
+results.precision(6);
+results.fixed;
+
+// Salida por pantalla con 6 decimales y formato fijo (no científico)
+cout.precision(6);
+cout.fixed;
+
+// Encabezados de las tablas de resultados
+cout << " X " << "                 Y1 " << "                 Y2 " << "               Solucion real" << "       Error (|Y1 - Yreal|)" << endl;
+cout << " x = " << X << "       y1 = " << Y1 << "       y2 = " << Y2 << "     Yreal = " << realSolution(X) << "    Valor = " << abs(Y1 - realSolution(X)) << endl;
+
+// Guardado de la primera fila de resultados
+results << "  " << X << "  " << Y1 << "  " << Y2 << "  " << realSolution(X) << "  " << abs(Y1 - realSolution(X)) << "\n";
+
+// ============================================================
+//               MÉTODO DE RUNGE-KUTTA DE 4º ORDEN
+// ============================================================
+
+while(X<=XF) {    
+
+        // Primera pendiente (evaluada en el punto inicial)
+        k11 = f1(X, Y1, Y2);
+        k21 = f2(X, Y1, Y2);
+
+        // Se avanza media longitud de paso (h/2)
+        X = X + 0.5 * h;
+
+        // Segunda pendiente (evaluada en el punto medio)
+        Z1 = Y1 + 0.5 * h * k11;
+        Z2 = Y2 + 0.5 * h * k21;
+        k12 = f1(X, Z1, Z2);
+        k22 = f2(X, Z1, Z2); 
+
+        // Tercera pendiente (nueva evaluación en el punto medio)
+        // Se recalculan Y y X con los valores anteriores
+        Z1 = Y1 + 0.5 * h * k12;
+        Z2 = Y2 + 0.5 * h * k22;
+        k13 = f1(X, Z1, Z2);
+        k23 = f2(X, Z1, Z2);
+
+        // Se avanza otra media longitud de paso (h/2)
+        X = X + 0.5 * h;
+
+        // Cuarta pendiente (evaluada en el final del intervalo)
+        Z1 = Y1 + h * k13;
+        Z2 = Y2 + h * k23; 
+        k14 = f1(X, Z1, Z2);
+        k24 = f2(X, Z1, Z2);
+
+        // Cálculo de la nueva solución mediante la fórmula de Runge-Kutta de cuarto orden
+        Y1 = Y1 + h * (k11 + 2 * k12 + 2 * k13 + k14) / 6;
+        Y2 = Y2 + h * (k21 + 2 * k22 + 2 * k23 + k24) / 6;
+
+        // Salida de resultados por pantalla y archivo
+        cout << " x = " << X << "       y1 = " << Y1 << "       y2 = " << Y2 << "    Yreal = " << realSolution(X) << "    Valor = " << abs(Y1 - realSolution(X)) << endl;
+        results << "  " << X << "  " << Y1 << "  " << Y2 << "  " << realSolution(X) << "  " << abs(Y1 - realSolution(X)) << "\n";
+}
+
+cout << "\n============================\n";
+cout << "Fin de ejecucion" << endl;
+cout << "============================\n\n";

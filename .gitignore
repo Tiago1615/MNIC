@@ -1,0 +1,9 @@
+# Ignorar archivos PDF
+*.pdf
+
+# Ignorar archivos de Word
+*.doc
+*.docx
+
+# Ignorar archivos de log
+*.log
