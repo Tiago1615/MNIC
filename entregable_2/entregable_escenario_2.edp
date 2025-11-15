@@ -3,37 +3,38 @@
 
 //Definimos el dominio de estudio, creamos la malla y la dibujamos
 //----------------------------------------------------------------
+real L = 2.0;
+real H = 0.5;
 
-// Contorno inferior
-border a(t=0, 2) {
-    x=t;
-    y=0;
-    label=1;
+// Pared inferior
+border a(t=0, L) {
+    x = t;
+    y = 0;
+    label = 1;
 };
 
-//Salida de aire
-border b(t=0, 0.5) {
-    x=2;
-    y=t;
-    label=5;
+// Salida (derecha)
+border b(t=0, H) {
+    x = L;
+    y = t;
+    label = 5;
 };
 
-// Contorno superior
-border c(t=2, 0) {
-    x=t;
-    y= 0.375 + 0.125 * (sin(pi * (x + 0.5)));;
-    label=3;
+// Techo ondulado
+border c(t=L, 0) {
+    x = t;
+    y = 0.375 + 0.125 * (sin(pi * (x + 0.5)));
+    label = 3;
 };
 
-//Entrada de aire
-border d(t=0.5, 0) {
-    x=0;
-    y=t;
-    label=4;
+// Entrada (izquierda)
+border d(t=H, 0) {
+    x = 0;
+    y = t;
+    label = 4;
 };
 
-
-int n=80;
+int n = 80;
 mesh malla = buildmesh(a(n) + b(n) + c(n) + d(n));
 plot(malla, wait=1);
 
@@ -45,10 +46,6 @@ Vh u,v,kx,ky,u1,u2,uoldt,uu; // u es temperatura en grados Celsius  , añadido u
 //Conductividad térmica constante
 kx=0.02624;  
 ky=0.02624;
-real hc=10.; //Coeficiente de convección   W/m2
-
-real uf=25.; 
-// temperatura del aire exterior a la salida
 
 real densidad,cp;
 densidad=1.1769;
@@ -56,64 +53,73 @@ cp=1.0073;
 real A;
 A= densidad*cp;
 
-// componente horizontal, obtuvimos para que en el centro la v max fuera 3 m/s
-u1 = 4*3*(y/0.5)*(1 - y/0.5);
+u1=48*y*(0.5 - y); // componente horizontal, obtuvimos para que en el centro la v max fuera 3 m/s
+u2=0; // u2 es cero, la componente vertical del vector velocidad es cero 
 
-// u2 es cero, la componente vertical del vector velocidad es cero 
-u2=0;
+real dt=0.01;
+real r=0.001;
 
-real dt = 0.01;
-real r = 0.001;
-
-real AA = 100000000;
-real h = 1000;
-real aa = 1;
+real AA = 10e8;
+real h=1000.;
+real aa = 1.0;
 real bb = 0.125;
 
-uoldt = AA * exp( -h * ((x - aa)^2 + (y - bb)^2));
+uoldt = AA*exp(-h*((x-aa)^2 +(y-bb)^2));
 
 real alpha=1/dt;
 
-problem calor(u,v) = 
-    int2d (malla) (A*u*v/dt)- int2d(malla) (A*alpha*convect([u1,u2],-dt,uoldt)*v) //derivada total
+problem transporte(u, v)
+  = int2d(malla)( A*u*v/dt )
+  - int2d(malla)( A*alpha*convect([u1, u2], -dt, uoldt)*v ) // derivada total
+  + int2d(malla)( kx*dx(u)*dx(v) + ky*dy(u)*dy(v) )
+  + int2d(malla)( r*u*v )
+  + on(4, u=0);   // concentración cero en la entrada, salida libre
+int iter = 0;
+real tfinal = 200.;  // algo suficientemente grande; luego acabamos antes si u cae
+real tlim = -1;      // tiempo en el que se “extingue” el contaminante
+real tol = 1e-6;
 
-    + int2d(malla)(kx*dx(u)*dx(v)+ky*dy(u)*dy(v))
-    + int2d(malla)(r*u*v)
-    + on(4, u=0); // CONTAMINACION CERO A LA ENTRADA  , FLUJO LIBRE A LA SALIDA 
-plot([u1,u2], wait=1);
+for (real t = 0; t < tfinal; t += dt) {
+    iter++;
 
+    transporte;   // resuelve para u en el instante t+dt
+    uoldt = u;
 
-int m=0;
-real tfinal=100; // tiempo final de simulacion      
+    // Máxima concentración en el dominio
+    real umax = u[].max;
 
-int iter;
+    if (!(iter % 4)) {     // cada 10 pasos, pintamos
+        cout << "t = " << t+dt << ", umax = " << umax << endl;
+        plot(u, cmm = "t = " + (t+dt), value = 1);
+    }
 
-for (real t=0;t<tfinal;t += dt)
-{
-    iter=iter+1;  // contador de iteraciones
-    calor; // CALCULA u
-    uoldt=u; 
-
-
-    if (!(iter % 2)) //cada multiplo de 2 imprime el plot de la linea siguiente
-    plot(u, cmm=" tiempo ="+t,value=1);
-
-    malla = adaptmesh(
-        malla,
-        u,
-        err=0.001,
-        hmax=0.1,
-        hmin=0.001,
-        cutoff=1e-6,
-        ratio=1.6,
-        nbvx=20000,  // ADAPTACION DE MALLA
-        splitpbedge=2,
-        power=1,
-        abserror=true,
-        nomeshgeneration=false,
-        anisomax=1
+    // Adaptamos malla en cada iteración
+    malla = adaptmesh(malla, u,
+        err = 0.001,
+        hmax = 0.05,
+        hmin = 0.001,
+        cutoff = 1e-6,
+        ratio = 1.6,
+        nbvx = 20000,
+        splitpbedge = 2,
+        power = 1,
+        abserror = true,
+        nomeshgeneration = false,
+        anisomax = 1
     );
 
-    if ( !(iter % 5)) //cada multiplo de 5 imprime el plot de la linea siguiente
-    plot (malla,cmm=" tiempo ="+t);
-} 
+    // Reproyectar u, u1, u2 en la nueva malla si hace falta:
+    Vh uNew = u, u1New = u1, u2New = u2;
+    u = uNew; u1 = u1New; u2 = u2New; uoldt = u;
+
+    if (umax < tol && tlim < 0) {
+        tlim = t + dt;
+        cout << "Concentracion < " << tol << " en todo el dominio en t = " << tlim << endl;
+        break;  // ya no hay contaminación apreciable
+    }
+}
+
+if (tlim < 0)
+    cout << "No se ha alcanzado el umbral de " << tol << " antes de t = " << tfinal << endl;
+
+
