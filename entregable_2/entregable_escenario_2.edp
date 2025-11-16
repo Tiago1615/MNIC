@@ -59,7 +59,7 @@ u2=0; // u2 es cero, la componente vertical del vector velocidad es cero
 real dt=0.01;
 real r=0.001;
 
-real AA = 10e8;
+real AA = 100000000.;
 real h=1000.;
 real aa = 1.0;
 real bb = 0.125;
@@ -88,15 +88,13 @@ for (real t = 0; t < tfinal; t += dt) {
     // Máxima concentración en el dominio
     real umax = u[].max;
 
-    if (!(iter % 4)) {     // cada 10 pasos, pintamos
-        cout << "t = " << t+dt << ", umax = " << umax << endl;
-        plot(u, cmm = "t = " + (t+dt), value = 1);
-    }
+    cout << "t = " << t+dt << ", umax = " << umax << endl;
+    plot(u, cmm = "t = " + (t+dt), value = 1);
 
     // Adaptamos malla en cada iteración
     malla = adaptmesh(malla, u,
         err = 0.001,
-        hmax = 0.05,
+        hmax = 0.1,
         hmin = 0.001,
         cutoff = 1e-6,
         ratio = 1.6,
@@ -107,10 +105,6 @@ for (real t = 0; t < tfinal; t += dt) {
         nomeshgeneration = false,
         anisomax = 1
     );
-
-    // Reproyectar u, u1, u2 en la nueva malla si hace falta:
-    Vh uNew = u, u1New = u1, u2New = u2;
-    u = uNew; u1 = u1New; u2 = u2New; uoldt = u;
 
     if (umax < tol && tlim < 0) {
         tlim = t + dt;
