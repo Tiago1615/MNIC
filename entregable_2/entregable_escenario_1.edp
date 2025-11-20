@@ -2,42 +2,15 @@
 
 //Definimos el dominio de estudio, creamos la malla y la dibujamos
 //----------------------------------------------------------------
-
-// Dimensiones del dominio
-real L=2.0;
-real H=0.5;
-
-//Pared inferior
-border a(t=0, L) {
-    x=t;
-    y=0;
-    label=1;
-};
-
-//Salida de aire
-border b(t=0, H) {
-    x=L;
-    y=t;
-    label=5;
-};
-
-// Pared superior
-border c(t=L, 0) {
-    x = t;
-    y = 0.375 + 0.125 * (sin(pi * (x + 0.5)));
-    label = 3;
-};
-
-//Entrada de aire
-border d(t=H, 0) {
-    x=0;
-    y=t;
-    label=4;
-};
+border a(t=0,2) {x=t;y=0;label=1;};
+border b(t=0,0.5) {x=2;y=t;label=5;}; 
+border c(t=2,0) {x=t;y=0.375+0.125*sin(pi*(t+0.5));label=3;};
+border d(t=0.5,0) {x=0;y=t;label=4;};
 
 
 int n=80;
-mesh malla = buildmesh(a(n) + b(n) + c(n) + d(n));
+mesh malla = buildmesh(a(n)+b(n)+c(n)+d(n));
+plot(malla, wait=1);
 
 //Definimos el problema que queremos resolver
 //-------------------------------------------
@@ -49,8 +22,8 @@ kx=0.02624;
 ky=0.02624;
 real hc=10.; //Coeficiente de convección   W/m2
 
+real uf=25.; 
 // temperatura del aire exterior a la salida
-real uf = 25.; 
 
 real densidad,cp;
 densidad=1.1769;
@@ -58,30 +31,35 @@ cp=1.0073;
 real A;
 A= densidad*cp;
 
-// umax = 3 m/s en y = H/2 --> u(y) = C * y * (H - y) --> 3 = C * (H/2) * (H - H/2) --> C = 3 / (H^2/4) = 12 / H^2 = 12 / 0.25 = 48
-u1 = 48.0*y*(H-y);          // componente horizontal del vector velocidad
+// umax = 3 m/s en y = H/2 --> u(y) = C * y * (y - H) --> 3 = C * (H/2) * (H/2 - H) --> C = 3 / -(H^2/4) = 12 / -H^2 = 12 / -0.25 = -48
+u1 = -48.0*y*(y - 0.5);          // componente horizontal del vector velocidad
 u2 = 0;                       // u2 es cero, la componente vertical del vector velocidad es cero 
 
 real dt=0.01;
+
 real alpha=1/dt;
 
 problem calor(u,v) = 
-    int2d (malla) (A * u * v/dt)
-    - int2d(malla) (A * alpha * convect([u1,u2], -dt, uoldt) * v) //derivada total
-    + int2d(malla)(kx * dx(u) * dx(v) + ky * dy(u) * dy(v))
-    + int1d(malla, 5) (hc * u * v) - int1d(malla, 5) (hc * uf * v)
-    + on(4, u = 15);  // aire entra a 15 grados
-int m = 0;
-real tfinal = 3; // tiempo final de simulacion 
+int2d (malla) (A*u*v/dt)
+- int2d(malla) (A*alpha*convect([u1,u2],-dt,uoldt)*v) //derivada total
++ int2d(malla)(kx*dx(u)*dx(v)+ky*dy(u)*dy(v))
++ int1d(malla,5) (hc*u*v) - int1d(malla,5) (hc*uf*v)
++ on(4,u=15);  // aire entra a 15 grados
+plot([u1,u2], wait=1);
+
+
+int m=0;
+real tfinal=3; // tiempo final de simulacion      
+
 int iter;
+
 for (real t=0; t < tfinal; t += dt)
 {
-    iter = iter + 1;  // contador de iteraciones
-    calor;            // CALCULA u
-    uoldt = u; 
+    iter=iter+1;  // contador de iteraciones
+    calor; // CALCULA u
+    uoldt=u; 
 
-    if (!(iter % 4))
-    plot(u, cmm=" tiempo =" +t, value=1);
+    plot(u, cmm=" tiempo ="+t,value=1, WindowIndex=0);
 
     malla = adaptmesh(
         malla,
@@ -91,11 +69,16 @@ for (real t=0; t < tfinal; t += dt)
         hmin=0.001,
         cutoff=1e-6,
         ratio=1.6,
-        nbvx=40000,
+        nbvx=40000,  // ADAPTACION DE MALLA
         splitpbedge=2,
         power=1,
         abserror=true,
         nomeshgeneration=false,
         anisomax=1
     );
+
+    plot (malla,cmm=" tiempo ="+t, WindowIndex=1);
+
 } 
+
+
