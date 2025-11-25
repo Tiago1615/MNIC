@@ -43,36 +43,27 @@ fespace Vh(malla,P2);   // calor
 V1 u1,u2,w,p,q;         // velocidad y presion
 Vh u,v,uoldt;           // temperatura
 
-//Conductividad térmica constante (como escalares)
-real kx = 0.02624;  
-real ky = 0.02624;
-
-real hc = 10.;   //Coeficiente de convección   W/m2
-real uf = 25.;   // temperatura del aire exterior a la salida
-
-real densidad = 1.1769;
-real cp       = 1.0073;
-real A        = densidad*cp;
-
 // ======================================================
-// 3. Navier Stokes estacionario -> u1, u2
+// Navier Stokes -> u1, u2
 // ======================================================
 real nu   = 0.000016;              // viscosidad cinematica
 real area = int2d(malla)(1.);      // area del dominio
 
-u1 = 0;                            // inicializamos velocidades
-u2 = 0;
-p  = 0;
-
-// Paso de tiempo segun numero de Courant 0.9
+// Paso de tiempo segun numero de Courant 0.9 (Co = dt * umax / hmin)
 real umax = 3.0;            // vmax conocida en la entrada
 real hmin = malla.hmin;
 real dt   = 0.9 * hmin / umax;
 cout << "Courant 0.9: hmin = " << hmin << ", dt = " << dt << endl;
 
 int  iterNS = 0;
-real tNS, tmaxNS = 1.;                // paso de tiempo interno NS
+real tNS; 
+real tmaxNS = 1.;
 real alphaNS = 1./dt;
+
+// Inicializamos velocidades y presion
+u1 = 0;
+u2 = 0;
+p  = 0;
 
 for (tNS = 0; tNS < tmaxNS; tNS += dt)
 {
@@ -86,7 +77,9 @@ for (tNS = 0; tNS < tmaxNS; tNS += dt)
     solve pb4u(u1,w,init=n,solver=LU)
       = int2d(malla)( u1*w/dt + nu*(dx(u1)*dx(w) + dy(u1)*dy(w)) )
       - int2d(malla)( (f/dt - dx(p))*w )
-      + on(1, u1 = umax*(1 - (y/0.5)^2)) // Entrada: perfil parabolico vmax=3 en y=0, 0 en y=±0.5
+      // Entrada: perfil parabolico vmax=3 en y=0, 0 en y=±0.5
+      // u(y) = a - by^2; u(0) = a = umax = 3 m/s; u(±0.5) = 0 = 3 -b(0.5)^2 -> b = 3/0.25 = 12
+      + on(1, u1 = umax - 12.0*y*y)
       + on(2,4, u1 = 0)
       + on(3, u1 = f);
 
@@ -94,7 +87,7 @@ for (tNS = 0; tNS < tmaxNS; tNS += dt)
     solve pb4v(u2,w,init=n,solver=LU)
       = int2d(malla)( u2*w/dt + nu*(dx(u2)*dx(w) + dy(u2)*dy(w)) )
       - int2d(malla)( (g/dt - dy(p))*w )
-      + on(1,4,2, u2 = 0)
+      + on(1,2,4, u2 = 0)
       + on(3, u2 = g);
 
     // ---- Presión ----
@@ -117,8 +110,19 @@ for (tNS = 0; tNS < tmaxNS; tNS += dt)
 plot([u1,u2], cmm="Campo de velocidad estacionario", value=1, wait=1);
 
 // ======================================================
-// 4. Problema de calor (difusion + transporte) en Vh
+// Problema de calor (difusion + transporte) en Vh
 // ======================================================
+
+//Conductividad térmica constante (como escalares)
+real kx = 0.02624;  
+real ky = 0.02624;
+
+real hc = 10.;   //Coeficiente de convección   W/m2
+real uf = 25.;   // temperatura del aire exterior a la salida
+
+real densidad = 1.1769;
+real cp       = 1.0073;
+real A        = densidad*cp;
 
 real alpha = 1./dt;
 
@@ -129,10 +133,8 @@ problem calor(u,v) =
   + int1d(malla,3) (hc*u*v) - int1d(malla,3) (hc*uf*v)
   + on(1,u=15);  // aire entra a 15 grados
 
-plot([u1,u2], cmm="Campo de velocidad usado en calor", value=1, wait=1);
-
 // ======================================================
-// 5. Bucle temporal para la temperatura
+// Bucle temporal para la temperatura
 // ======================================================
 int    iter = 0;
 real   tfinal = 3;
@@ -145,22 +147,20 @@ for (real t=0; t < tfinal; t += dt)
 
     plot(u, cmm="tiempo ="+t, value=1, WindowIndex=0);
 
-    if (iter <= 2) {
-        malla = adaptmesh(
-            malla,
-            u,
-            err=0.01,
-            hmax=0.1,
-            hmin=0.001,
-            cutoff=1e-6,
-            ratio=1.6,
-            nbvx=40000,
-            splitpbedge=2,
-            power=1,
-            abserror=true,
-            nomeshgeneration=false,
-            anisomax=1
-        );
-        plot(malla, cmm="Malla adaptada, tiempo ="+t, WindowIndex=1);
-    }
+    malla = adaptmesh(
+        malla,
+        u,
+        err=0.01,
+        hmax=0.05,
+        hmin=0.001,
+        cutoff=1e-6,
+        ratio=1.6,
+        nbvx=40000,
+        splitpbedge=2,
+        power=1,
+        abserror=true,
+        nomeshgeneration=false,
+        anisomax=1
+    );
+    plot(malla, cmm="Malla adaptada, tiempo ="+t, WindowIndex=1);
 }
