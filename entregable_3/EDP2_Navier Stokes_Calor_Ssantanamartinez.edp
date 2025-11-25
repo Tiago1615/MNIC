@@ -64,31 +64,36 @@ u1 = 0;                            // inicializamos velocidades
 u2 = 0;
 p  = 0;
 
-int  iterNS = 0;
-real tNS, tmaxNS = 1.;
-real dtNS = 0.01;                  // paso de tiempo interno NS
-real alphaNS = 1./dtNS;
+// Paso de tiempo segun numero de Courant 0.9
+real umax = 3.0;            // vmax conocida en la entrada
+real hmin = malla.hmin;
+real dt   = 0.9 * hmin / umax;
+cout << "Courant 0.9: hmin = " << hmin << ", dt = " << dt << endl;
 
-for (tNS = 0; tNS < tmaxNS; tNS += dtNS)
+int  iterNS = 0;
+real tNS, tmaxNS = 1.;                // paso de tiempo interno NS
+real alphaNS = 1./dt;
+
+for (tNS = 0; tNS < tmaxNS; tNS += dt)
 {
     iterNS++;
 
     V1 u1old = u1, u2old = u2, pold = p;
-    V1 f = convect([u1,u2], -dtNS, u1old);
-    V1 g = convect([u1,u2], -dtNS, u2old);
+    V1 f = convect([u1,u2], -dt, u1old);
+    V1 g = convect([u1,u2], -dt, u2old);
 
     // ---- Componente u1 ----
     solve pb4u(u1,w,init=n,solver=LU)
-      = int2d(malla)( u1*w/dtNS + nu*(dx(u1)*dx(w) + dy(u1)*dy(w)) )
-      - int2d(malla)( (f/dtNS - dx(p))*w )
-      + on(1, u1 = 3.0 - 12.0*y*y) // Entrada: perfil parabolico vmax=3 en y=0, 0 en y=±0.5
+      = int2d(malla)( u1*w/dt + nu*(dx(u1)*dx(w) + dy(u1)*dy(w)) )
+      - int2d(malla)( (f/dt - dx(p))*w )
+      + on(1, u1 = umax*(1 - (y/0.5)^2)) // Entrada: perfil parabolico vmax=3 en y=0, 0 en y=±0.5
       + on(2,4, u1 = 0)
       + on(3, u1 = f);
 
     // ---- Componente u2 ----
     solve pb4v(u2,w,init=n,solver=LU)
-      = int2d(malla)( u2*w/dtNS + nu*(dx(u2)*dx(w) + dy(u2)*dy(w)) )
-      - int2d(malla)( (g/dtNS - dy(p))*w )
+      = int2d(malla)( u2*w/dt + nu*(dx(u2)*dx(w) + dy(u2)*dy(w)) )
+      - int2d(malla)( (g/dt - dy(p))*w )
       + on(1,4,2, u2 = 0)
       + on(3, u2 = g);
 
@@ -97,13 +102,13 @@ for (tNS = 0; tNS < tmaxNS; tNS += dtNS)
 
     solve pb4p(q,w,init=n,solver=LU)
       = int2d(malla)( dx(q)*dx(w) + dy(q)*dy(w) )
-      - int2d(malla)( (dx(u1)+dy(u2)-meandiv)*w/dtNS )
+      - int2d(malla)( (dx(u1)+dy(u2)-meandiv)*w/dt )
       + on(3, q = 0);
 
     real meanpq = int2d(malla)(pold - q)/area;
     p  = pold - q - meanpq;
-    u1 = u1 + dx(q)*dtNS;
-    u2 = u2 + dy(q)*dtNS;
+    u1 = u1 + dx(q)*dt;
+    u2 = u2 + dy(q)*dt;
 
     if ( !(iterNS % 20) )
         plot([u1,u2], cmm="Navier-Stokes t="+tNS, value=1);
@@ -114,12 +119,6 @@ plot([u1,u2], cmm="Campo de velocidad estacionario", value=1, wait=1);
 // ======================================================
 // 4. Problema de calor (difusion + transporte) en Vh
 // ======================================================
-
-// Paso de tiempo segun numero de Courant 0.9
-real umax = 3.0;            // vmax conocida en la entrada
-real hmin = malla.hmin;
-real dt   = 0.9 * hmin / umax;
-cout << "Courant 0.9: hmin = " << hmin << ", dt = " << dt << endl;
 
 real alpha = 1./dt;
 
@@ -155,7 +154,7 @@ for (real t=0; t < tfinal; t += dt)
             hmin=0.001,
             cutoff=1e-6,
             ratio=1.6,
-            nbvx=20000,
+            nbvx=40000,
             splitpbedge=2,
             power=1,
             abserror=true,
