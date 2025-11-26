@@ -1,31 +1,28 @@
-// difusion transporte con implementacion derivada parcial, cond conctorno de conveccion a la salida
-
 // ======================================================
-// 1. Dominio y malla
-// OJO LABELS: 1 entrada, 3 salida, 4 superior, 2 inferior
+// Dominio y malla
 // ======================================================
 border a(t=0,2) {
-    x = t;
-    y = -(0.375 + 0.125*sin(pi*(t+0.5))); // borde inferior ondulado
-    label = 2;
+  x = t;
+  y = -(0.375 + 0.125*sin(pi*(t+0.5))); // borde inferior ondulado
+  label = 2;
 };
 
 border b(t=-0.5,0.5) {
-    x = 2;
-    y = t;                                // borde de salida
-    label = 3;
+  x = 2;
+  y = t;                                // borde de salida
+  label = 3;
 }; 
 
 border c(t=2,0) {
-    x = t;
-    y = 0.375 + 0.125*sin(pi*(t+0.5));    // borde superior ondulado
-    label = 4;
+  x = t;
+  y = 0.375 + 0.125*sin(pi*(t+0.5));    // borde superior ondulado
+  label = 4;
 };
 
 border d(t=0.5,-0.5) {
-    x = 0;
-    y = t;                                // borde de entrada
-    label = 1;
+  x = 0;
+  y = t;                                // borde de entrada
+  label = 1;
 };
 
 int n = 80;
@@ -33,7 +30,7 @@ mesh malla = buildmesh(a(n)+b(n)+c(n)+d(n));
 plot(malla, wait=1, cmm="Malla inicial");
 
 // ======================================================
-// 2. Espacios de funciones SEPARADOS
+// Espacios de funciones SEPARADOS
 //    V1 (P1) -> velocidades y presion
 //    Vh (P2) -> temperatura
 // ======================================================
@@ -67,44 +64,44 @@ p  = 0;
 
 for (tNS = 0; tNS < tmaxNS; tNS += dt)
 {
-    iterNS++;
+  iterNS++;
 
-    V1 u1old = u1, u2old = u2, pold = p;
-    V1 f = convect([u1,u2], -dt, u1old);
-    V1 g = convect([u1,u2], -dt, u2old);
+  V1 u1old = u1, u2old = u2, pold = p;
+  V1 f = convect([u1,u2], -dt, u1old);
+  V1 g = convect([u1,u2], -dt, u2old);
 
-    // ---- Componente u1 ----
-    solve pb4u(u1,w,init=n,solver=LU)
-      = int2d(malla)( u1*w/dt + nu*(dx(u1)*dx(w) + dy(u1)*dy(w)) )
-      - int2d(malla)( (f/dt - dx(p))*w )
-      // Entrada: perfil parabolico vmax=3 en y=0, 0 en y=±0.5
-      // u(y) = a - by^2; u(0) = a = umax = 3 m/s; u(±0.5) = 0 = 3 -b(0.5)^2 -> b = 3/0.25 = 12
-      + on(1, u1 = umax - 12.0*y*y)
-      + on(2,4, u1 = 0)
-      + on(3, u1 = f);
+  // ---- Componente u1 ----
+  solve pb4u(u1,w,init=n,solver=LU)
+    = int2d(malla)( u1*w/dt + nu*(dx(u1)*dx(w) + dy(u1)*dy(w)) )
+    - int2d(malla)( (f/dt - dx(p))*w )
+    // Entrada: perfil parabolico vmax=3 en y=0, 0 en y=±0.5
+    // u(y) = a - by^2; u(0) = a = umax = 3 m/s; u(±0.5) = 0 = 3 -b(0.5)^2 -> b = 3/0.25 = 12
+    + on(1, u1 = umax - 12.0*y*y)
+    + on(2,4, u1 = 0)
+    + on(3, u1 = f);
 
-    // ---- Componente u2 ----
-    solve pb4v(u2,w,init=n,solver=LU)
-      = int2d(malla)( u2*w/dt + nu*(dx(u2)*dx(w) + dy(u2)*dy(w)) )
-      - int2d(malla)( (g/dt - dy(p))*w )
-      + on(1,2,4, u2 = 0)
-      + on(3, u2 = g);
+  // ---- Componente u2 ----
+  solve pb4v(u2,w,init=n,solver=LU)
+    = int2d(malla)( u2*w/dt + nu*(dx(u2)*dx(w) + dy(u2)*dy(w)) )
+    - int2d(malla)( (g/dt - dy(p))*w )
+    + on(1,2,4, u2 = 0)
+    + on(3, u2 = g);
 
-    // ---- Presión ----
-    real meandiv = int2d(malla)(dx(u1)+dy(u2))/area;
+  // ---- Presión ----
+  real meandiv = int2d(malla)(dx(u1)+dy(u2))/area;
 
-    solve pb4p(q,w,init=n,solver=LU)
-      = int2d(malla)( dx(q)*dx(w) + dy(q)*dy(w) )
-      - int2d(malla)( (dx(u1)+dy(u2)-meandiv)*w/dt )
-      + on(3, q = 0);
+  solve pb4p(q,w,init=n,solver=LU)
+    = int2d(malla)( dx(q)*dx(w) + dy(q)*dy(w) )
+    - int2d(malla)( (dx(u1)+dy(u2)-meandiv)*w/dt )
+    + on(3, q = 0);
 
-    real meanpq = int2d(malla)(pold - q)/area;
-    p  = pold - q - meanpq;
-    u1 = u1 + dx(q)*dt;
-    u2 = u2 + dy(q)*dt;
+  real meanpq = int2d(malla)(pold - q)/area;
+  p  = pold - q - meanpq;
+  u1 = u1 + dx(q)*dt;
+  u2 = u2 + dy(q)*dt;
 
-    if ( !(iterNS % 20) )
-        plot([u1,u2], cmm="Navier-Stokes t="+tNS, value=1);
+  if ( !(iterNS % 20) )
+    plot([u1,u2], cmm="Navier-Stokes t="+tNS, value=1);
 }
 
 plot([u1,u2], cmm="Campo de velocidad estacionario", value=1, wait=1);
@@ -141,26 +138,26 @@ real   tfinal = 3;
 
 for (real t=0; t < tfinal; t += dt)
 {
-    iter++;
-    calor;            // resuelve u en el nuevo paso
-    uoldt = u;        // actualiza para la derivada total
+  iter++;
+  calor;            // resuelve u en el nuevo paso
+  uoldt = u;        // actualiza para la derivada total
 
-    plot(u, cmm="tiempo ="+t, value=1, WindowIndex=0);
+  plot(u, cmm="tiempo ="+t, value=1, WindowIndex=0);
 
-    malla = adaptmesh(
-        malla,
-        u,
-        err=0.01,
-        hmax=0.05,
-        hmin=0.001,
-        cutoff=1e-6,
-        ratio=1.6,
-        nbvx=40000,
-        splitpbedge=2,
-        power=1,
-        abserror=true,
-        nomeshgeneration=false,
-        anisomax=1
-    );
-    plot(malla, cmm="Malla adaptada, tiempo ="+t, WindowIndex=1);
+  malla = adaptmesh(
+    malla,
+    u,
+    err=0.01,
+    hmax=0.05,
+    hmin=0.001,
+    cutoff=1e-6,
+    ratio=1.6,
+    nbvx=40000,
+    splitpbedge=2,
+    power=1,
+    abserror=true,
+    nomeshgeneration=false,
+    anisomax=1
+  );
+  plot(malla, cmm="Malla adaptada, tiempo ="+t, WindowIndex=1);
 }

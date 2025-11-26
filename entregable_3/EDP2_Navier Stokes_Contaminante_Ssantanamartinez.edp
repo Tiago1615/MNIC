@@ -1,77 +1,165 @@
-// Modelo de transporte-difusion con termino de reaccion
-// Esquema con derivada material y refinamiento adaptativo
+// ======================================================
+// Dominio y malla
+// ======================================================
+border a(t=0,2) {
+  x = t;
+  y = -(0.375 + 0.125*sin(pi*(t+0.5))); // borde inferior ondulado
+  label = 2;
+};
 
-// Construccion del dominio computacional
-// Geometria: canal con techo ondulado
-border a(t=0,2) {x=t;y=0;label=1;};
-border b(t=0,0.5) {x=2;y=t;label=5;}; 
-border c(t=2,0) {x=t;y=0.375+0.125*sin(pi*(t+0.5));label=3;};
-border d(t=0.5,0) {x=0;y=t;label=4;};
+border b(t=-0.5,0.5) {
+  x = 2;
+  y = t;                                // borde de salida
+  label = 3;
+}; 
 
+border c(t=2,0) {
+  x = t;
+  y = 0.375 + 0.125*sin(pi*(t+0.5));    // borde superior ondulado
+  label = 4;
+};
 
-int n=80;
+border d(t=0.5,-0.5) {
+  x = 0;
+  y = t;                                // borde de entrada
+  label = 1;
+};
+
+int n = 80;
 mesh malla = buildmesh(a(n)+b(n)+c(n)+d(n));
-plot(malla, wait=1);
+plot(malla, wait=1, cmm="Malla inicial");
 
-// Declaracion de espacios funcionales
-fespace Vh(malla,P2);
-Vh u,v,kx,ky,u1,u2,uoldt,uu;
+// ======================================================
+// Espacios de funciones SEPARADOS
+//    V1 (P1) -> velocidades y presion
+//    Vc (P2) -> contaminante
+// ======================================================
+fespace V1(malla,P1);   // Navier–Stokes
+fespace Vc(malla,P2);   // Espacio para el contaminante (P2)
 
-// Parametros de difusion del medio
-kx=0.02624;  
-ky=0.02624;
+V1 u1,u2,w,p,q;         // velocidad y presion
+Vc C, wC, Coldt;           // contaminante
 
-real densidad,cp;
-densidad=1.1769;
-cp=1.0073;
-real A;
-A= densidad*cp;
+// ======================================================
+// Navier Stokes -> u1, u2
+// ======================================================
+real nu   = 0.000016;              // viscosidad cinematica
+real area = int2d(malla)(1.);      // area del dominio
 
-// Campo de velocidades del flujo
-u1=-48*y*(y - 0.5);
-u2=0;
+// Paso de tiempo segun numero de Courant 0.9 (Co = dt * umax / hmin)
+real umax = 3.0;            // vmax conocida en la entrada
+real hmin = malla.hmin;
+real dt   = 0.9 * hmin / umax;
+cout << "Courant 0.9: hmin = " << hmin << ", dt = " << dt << endl;
 
-real dt=0.01;
-real r=0.001; // tasa de decaimiento
+int  iterNS = 0;
+real tNS; 
+real tmaxNS = 1.;
+real alphaNS = 1./dt;
 
-// Distribucion inicial del contaminante
-real AA=100000000;
-real h=1000;
-real aa=1;
-real bb=0.125;
+// Inicializamos velocidades y presion
+u1 = 0;
+u2 = 0;
+p  = 0;
 
-uoldt = AA*exp(-h*((x-aa)^2 +(y-bb)^2));
-
-real alpha=1/dt;
-
-// Formulacion variacional del problema
-problem calor(u,v) = 
-int2d (malla) (A*u*v/dt)- int2d(malla) (A*alpha*convect([u1,u2],-dt,uoldt)*v)
-+ int2d(malla)(kx*dx(u)*dx(v)+ky*dy(u)*dy(v))
-+ int2d(malla)(r*u*v)
-+ on(4,u=0);
-plot([u1,u2], wait=1);
-
-
-int m=0;
-real tfinal=10;
-
-int iter;
-
-for (real t=0;t<tfinal;t += dt)
+for (tNS = 0; tNS < tmaxNS; tNS += dt)
 {
-    iter=iter+1;
-    calor;
-    uoldt=u; 
+  iterNS++;
 
+  V1 u1old = u1, u2old = u2, pold = p;
+  V1 f = convect([u1,u2], -dt, u1old);
+  V1 g = convect([u1,u2], -dt, u2old);
 
-    plot(u, cmm=" tiempo ="+t, value=1, WindowIndex=0);
+  // ---- Componente u1 ----
+  solve pb4u(u1,w,init=n,solver=LU)
+    = int2d(malla)( u1*w/dt + nu*(dx(u1)*dx(w) + dy(u1)*dy(w)) )
+    - int2d(malla)( (f/dt - dx(p))*w )
+    // Entrada: perfil parabolico vmax=3 en y=0, 0 en y=±0.5
+    // u(y) = a - by^2; u(0) = a = umax = 3 m/s; u(±0.5) = 0 = 3 -b(0.5)^2 -> b = 3/0.25 = 12
+    + on(1, u1 = umax - 12.0*y*y)
+    + on(2,4, u1 = 0)
+    + on(3, u1 = f);
+
+  // ---- Componente u2 ----
+  solve pb4v(u2,w,init=n,solver=LU)
+    = int2d(malla)( u2*w/dt + nu*(dx(u2)*dx(w) + dy(u2)*dy(w)) )
+    - int2d(malla)( (g/dt - dy(p))*w )
+    + on(1,2,4, u2 = 0)
+    + on(3, u2 = g);
+
+  // ---- Presión ----
+  real meandiv = int2d(malla)(dx(u1)+dy(u2))/area;
+
+  solve pb4p(q,w,init=n,solver=LU)
+    = int2d(malla)( dx(q)*dx(w) + dy(q)*dy(w) )
+    - int2d(malla)( (dx(u1)+dy(u2)-meandiv)*w/dt )
+    + on(3, q = 0);
+
+  real meanpq = int2d(malla)(pold - q)/area;
+  p  = pold - q - meanpq;
+  u1 = u1 + dx(q)*dt;
+  u2 = u2 + dy(q)*dt;
+
+  if ( !(iterNS % 20) )
+    plot([u1,u2], cmm="Navier-Stokes t="+tNS, value=1);
+}
+
+plot([u1,u2], cmm="Campo de velocidad estacionario", value=1, wait=1);
+
+// =============================================================
+//  Problema de contaminante (difusion + transporte + reaccion)
+// =============================================================
+
+// Coeficientes de difusion
+real kx = 0.02624;
+real ky = 0.02624;
+
+real densidad = 1.1769;
+real cp       = 1.0073;
+real A        = densidad*cp;
+
+// Reaccion
+real r = 0.001;
+
+real alpha = 1.0/dt;
+
+// Condicion inicial: vertido gaussiano en (aa,bb) = (1,0.125)
+real AA = 100000000;
+real h  = 1000;
+real aa = 1.0;
+real bb = 0.125;
+
+// C en t = 0
+Coldt = AA*exp(-h*((x-aa)^2 + (y-bb)^2));
+
+// Problema de transporte–difusion–reaccion
+problem difutransreac(C, wC) =
+    int2d(malla)( A*C*wC/dt )
+  - int2d(malla)( A*alpha*convect([u1,u2], -dt, Coldt)*wC ) // derivada total
+  + int2d(malla)( kx*dx(C)*dx(wC) + ky*dy(C)*dy(wC) )
+  + int2d(malla)( r*C*wC )
+  + on(1, C=0);   // aire entra SIN contaminante por la entrada
+
+// ======================================================
+// Bucle temporal para la concentracion de contaminante
+// ======================================================
+int    iterC = 0;
+real   tfinal = 10;
+
+for (real t=0; t < tfinal; t += dt)
+{
+    iterC++;
+
+    difutransreac;   // resuelve C en el nuevo paso
+    Coldt = C;       // actualiza para la derivada total
+
+    plot(C, cmm="tiempo ="+t, value=1, WindowIndex=0);
 
     malla = adaptmesh(
-        malla, 
-        u,
+        malla,
+        C,
         err=0.01,
-        hmax=0.1,
+        hmax=0.05,
         hmin=0.001,
         cutoff=1e-6,
         ratio=1.6,
@@ -83,8 +171,5 @@ for (real t=0;t<tfinal;t += dt)
         anisomax=1
     );
 
-    plot(malla, cmm=" tiempo ="+t, WindowIndex=1);;
-
-} 
-
-
+    plot(malla, cmm="Malla adaptada, t="+t, WindowIndex=1);
+}
