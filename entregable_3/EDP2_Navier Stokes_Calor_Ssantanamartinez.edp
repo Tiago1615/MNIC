@@ -134,7 +134,7 @@ problem calor(u,v) =
 // Bucle temporal para la temperatura
 // ======================================================
 int    iter = 0;
-real   tfinal = 3;
+real   tfinal = 5;
 
 for (real t=0; t < tfinal; t += dt)
 {

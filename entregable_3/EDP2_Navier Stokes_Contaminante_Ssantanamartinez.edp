@@ -144,7 +144,7 @@ problem difutransreac(C, wC) =
 // Bucle temporal para la concentracion de contaminante
 // ======================================================
 int    iterC = 0;
-real   tfinal = 10;
+real   tfinal = 40;
 
 for (real t=0; t < tfinal; t += dt)
 {
