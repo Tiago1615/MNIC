@@ -34,9 +34,17 @@ for i = 1:length(true_abs_mats)
     
     fprintf('\n--- Resultados para %s ---\n', true_abs_names{i});
     fprintf('Matriz Q (Estados transitorios):\n');
-    disp(Q);
+    if isempty(Q)
+        disp('[]')
+    else
+        disp(Q);
+    end
     fprintf('Matriz Fundamental F:\n');
-    disp(F);
+    if isempty(F)
+        disp('[]')
+    else
+        disp(F);
+    end
 end
 
 %% 3. Comprobación de Matrices Regulares
@@ -75,19 +83,24 @@ fprintf('Otras:       %s\n', strjoin(setdiff(names, [true_abs_names, reg_names])
 % -------------------------------------------------------------------------
 
 function [F, Q] = calculate_fundamental_matrix(M)
-    abs_states = [];
     n = size(M,1);
+    abs_states = [];
     for i = 1:n
-        % Identifica si el estado es puramente absorbente
-        if M(i,i) == 1 && all(M(i,[1:i-1,i+1:n]) == 0)
+        % Un estado es absorbente si M(i,i) == 1 y el resto de la fila es 0
+        if M(i,i) == 1 && all(M(i,[1:i-1, i+1:n]) == 0)
             abs_states(end+1) = i;
         end
     end
+    
     trans_states = setdiff(1:n, abs_states);
-    % Si hay estados transitorios, calcula la matriz F
-    if isempty(trans_states)
+    
+    % Si hay estados transitorios, calculamos. Si no, devolvemos vacío.
+    if ~isempty(trans_states)
         Q = M(trans_states, trans_states);
         F = inv(eye(size(Q)) - Q);
+    else
+        Q = [];
+        F = [];
     end
 end
 
