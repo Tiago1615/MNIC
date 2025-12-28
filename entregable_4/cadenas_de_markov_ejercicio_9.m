@@ -1,25 +1,24 @@
-%% EJERCICIO 9: MODELO DE OCUPACIÓN EN BARBERÍA
-% Análisis mediante Cadenas de Markov
+%% EJERCICIO 9: BARBERÍA
 % -------------------------------------------------------------------------
 
 % --- (a) Construcción de la Matriz de Transición ---
-% Definimos la matriz T donde T(i,j) es la probabilidad de pasar de i a j clientes.
-% Estados: 0, 1, 2, y 3 (máximo permitido en el sistema)
+% Definimos la matriz P donde P(i,j) es la probabilidad de pasar de i a j clientes.
+% Estados: 0, 1, 2, y 3
 
-T = [ 0.2, 0.5, 0.2, 0.1 ;   % Desde 0: Solo entran clientes
+P = [ 0.2, 0.5, 0.2, 0.1 ;   % Desde 0: Solo entran clientes
       0.2, 0.5, 0.2, 0.1 ;   % Desde 1: Sale uno y entran n
       0.0, 0.2, 0.5, 0.3 ;   % Desde 2: Sale uno, queda uno y entran n
       0.0, 0.0, 0.2, 0.8 ];  % Desde 3: Sale uno, quedan dos y entran n (saturación)
 
 fprintf('--- Apartado (a): Matriz de Transición T ---\n');
-disp(T);
+disp(P);
 
 % --- (b) Distribución tras 30 minutos (2 intervalos de 15 min) ---
 % Estado inicial: Equiprobable entre 0 y 1 cliente.
 p_ini = [0.5, 0.5, 0, 0]; 
 
-% Evolución: p_final = p_ini * T^pasos
-p_30min = p_ini * (T^2);
+% Evolución: p_final = p_ini * P^pasos
+p_30min = p_ini * (P^2);
 
 fprintf('--- Apartado (b): Distribución a los 30 minutos ---\n');
 fprintf('P(X=0)=%.4f, P(X=1)=%.4f, P(X=2)=%.4f, P(X=3)=%.4f\n\n', p_30min);
@@ -28,8 +27,8 @@ fprintf('P(X=0)=%.4f, P(X=1)=%.4f, P(X=2)=%.4f, P(X=3)=%.4f\n\n', p_30min);
 % Resolvemos el sistema de ecuaciones para el estado de equilibrio.
 % Se utiliza la transpuesta y se impone la condición de que la suma sea 1.
 
-n = length(T);
-MatrizEcuac = (T' - eye(n)); 
+n = length(P);
+MatrizEcuac = (P' - eye(n)); 
 MatrizEcuac(n, :) = 1; % Condición de normalización (suma de probs = 1)
 
 VectorB = [zeros(n-1, 1); 1];

@@ -1,151 +1,117 @@
-% Definir las matrices
-Pa = [1 0; 0.2 0.8];
-Pb = [1 0; 0 1];
-Pc = [0.7 0.3; 0.4 0.6];
+%% Ejercicio 2 - Clasificación y Análisis de Matrices de Transición
+clear; clc;
 
-Pd = [0.9 0 0.1; 0.6 0.2 0.2; 0 0.6 0.4];
-Pe = [0.8 0 0.2; 0 1 0; 0.9 0 0.1];
-Pf = [0.25 0.05 0.7; 0.5 0.3 0.2; 0 0 1];
-
-Pg = [0.8 0.2 0; 0.2 0.4 0.4; 0 0.3 0.7];
-
-Ph = [0.4 0 0.4 0.2; 0.1 0.8 0 0.1; 0 0 1 0; 0.2 0 0.7 0.1];
-
-Pi = [0.8 0.2 0 0; 0.3 0.7 0 0; 0 0 0.9 0.1; 0 0 0.4 0.6];
-
-Pj = [0.5 0.1 0.3 0.1; 1 0 0 0; 0.2 0.1 0.7 0; 0 0 1 0];
-
-Pk = [0.2 0.3 0.4 0.1; 0 1 0 0; 0.2 0.3 0.4 0.1; 0.1 0.4 0.2 0.3];
-
-Pl = [0.9 0 0.1 0; 0.1 0.6 0.1 0.2; 0.3 0 0.7 0; 0 0 0 1];
-
-% Comprobar posibles matrices absorbentes (Aquellas que tengan un 1 en la
-% diagonal principal, son candidatas de ser absorbentes)
-
+% --- Definición de Datos ---
 names = {'Pa', 'Pb', 'Pc', 'Pd', 'Pe', 'Pf', 'Pg', 'Ph', 'Pi', 'Pj', 'Pk', 'Pl'};
-matrices = {Pa, Pb, Pc, Pd, Pe, Pf, Pg, Ph, Pi, Pj, Pk, Pl};
+matrices = {
+    [1 0; 0.2 0.8], [1 0; 0 1], [0.7 0.3; 0.4 0.6], ...
+    [0.9 0 0.1; 0.6 0.2 0.2; 0 0.6 0.4], [0.8 0 0.2; 0 1 0; 0.9 0 0.1], ...
+    [0.25 0.05 0.7; 0.5 0.3 0.2; 0 0 1], [0.8 0.2 0; 0.2 0.4 0.4; 0 0.3 0.7], ...
+    [0.4 0 0.4 0.2; 0.1 0.8 0 0.1; 0 0 1 0; 0.2 0 0.7 0.1], ...
+    [0.8 0.2 0 0; 0.3 0.7 0 0; 0 0 0.9 0.1; 0 0 0.4 0.6], ...
+    [0.5 0.1 0.3 0.1; 1 0 0 0; 0.2 0.1 0.7 0; 0 0 1 0], ...
+    [0.2 0.3 0.4 0.1; 0 1 0 0; 0.2 0.3 0.4 0.1; 0.1 0.4 0.2 0.3], ...
+    [0.9 0 0.1 0; 0.1 0.6 0.1 0.2; 0.3 0 0.7 0; 0 0 0 1]
+};
 
-fprintf('\n--- Análisis de Candidatas a Absorbentes ---\n');
-
+%% 1. Comprobación de Candidatas a Absorbentes
+fprintf('\n=== 1. ANÁLISIS DE CANDIDATAS A ABSORBENTES ===\n');
 for i = 1:length(matrices)
     if any(diag(matrices{i}) == 1)
-        fprintf('%s es una matriz candidata de ser absorbente.\n', names{i});
+        fprintf('%s es una matriz candidata (contiene 1 en la diagonal).\n', names{i});
     end
 end
 
-% Las matrices que realmente son absorbentes son Pa, Pb, Pf, Ph y Pk. Aquí
-% no se va a detellar el porqué, los motivos se explican en el informe.
+%% 2. Cálculo de Matriz Fundamental para Absorbentes Confirmadas
+% Según informe: Pa, Pb, Pf, Ph, Pk son las seleccionadas
+true_abs_idx = ismember(names, {'Pa', 'Pb', 'Pf', 'Ph', 'Pk'});
+true_abs_names = names(true_abs_idx);
+true_abs_mats = matrices(true_abs_idx);
 
-true_absorbing_names = {'Pa', 'Pb', 'Pf', 'Ph', 'Pk'};
-true_absorbing = {Pa, Pb, Pf, Ph, Pk};
-
-% Calcular y mostrar la matriz fundamental para cada matriz absorbente
-
-fprintf('\n--- Matriz Fundamental (F = (I - Q)^-1) para cada matriz absorbente ---\n');
-
-for j = 1:length(true_absorbing)
-    [F, Q] = calculate_fundamental_matrix(true_absorbing{j}); 
+fprintf('\n=== 2. MATRIZ FUNDAMENTAL (F = (I - Q)^-1) ===\n');
+for i = 1:length(true_abs_mats)
+    [F, Q] = calculate_fundamental_matrix(true_abs_mats{i});
     
-    fprintf('\n--- Resultados para %s ---\n', true_absorbing_names{j});
-    
-    fprintf('Matriz Q (Estados no absorbentes):\n');
-    if isempty(Q), disp('[]'); else, disp(Q); end
-    
+    fprintf('\n--- Resultados para %s ---\n', true_abs_names{i});
+    fprintf('Matriz Q (Estados transitorios):\n');
+    disp(Q);
     fprintf('Matriz Fundamental F:\n');
-    if isempty(F), disp('[]'); else, disp(F); end
+    disp(F);
 end
 
-% Comprobar matrices regulares. Una matriz de transición P, es regular si
-% si los términos de P^k (donde k es una potencia positiva) son
-% estrictamente positivos.
+%% 3. Comprobación de Matrices Regulares
+% Matrices restantes del análisis previo
+rem_idx = ismember(names, {'Pc', 'Pd', 'Pe', 'Pg', 'Pi', 'Pj', 'Pl'});
+rem_names = names(rem_idx);
+rem_mats = matrices(rem_idx);
 
-remaining_matrices_names = {'Pc', 'Pd', 'Pe', 'Pg', 'Pi', 'Pj', 'Pl'};
-remaining_matrices = {Pc, Pd, Pe, Pg, Pi, Pj, Pl};
-
-fprintf('\n--- Comprobación de Matrices Regulares ---\n');
-
-for z = 1:length(remaining_matrices)
-    fprintf('\n--- Resultados para %s ---\n', remaining_matrices_names{z});
-    is_regular_matrix(remaining_matrices{z});
+fprintf('\n=== 3. COMPROBACIÓN DE MATRICES REGULARES ===\n');
+for i = 1:length(rem_mats)
+    fprintf('Análisis de %s: ', rem_names{i});
+    is_regular_matrix(rem_mats{i});
 end
 
-fprintf('\n--- Vectores fijos (matrices regulares) ---\n');
+%% 4. Vectores Fijos (Matrices Regulares Confirmadas)
+% Según lógica: Pc, Pd, Pg, Pj
+reg_idx = ismember(names, {'Pc', 'Pd', 'Pg', 'Pj'});
+reg_names = names(reg_idx);
+reg_mats = matrices(reg_idx);
 
-regular_matrices_names = {'Pc', 'Pd', 'Pg', 'Pj'};
-regular_matrices = {Pc, Pd, Pg, Pj};
-
-for i = 1:length(regular_matrices)
-    fprintf('\nVector fijo para %s:\n', regular_matrices_names{i});
-    pi = stationary_vector(regular_matrices{i});
-    disp(pi)
+fprintf('\n=== 4. VECTORES FIJOS (ESTACIONARIOS) ===\n');
+for i = 1:length(reg_mats)
+    fprintf('\nVector fijo para %s:\n', reg_names{i});
+    pi = stationary_vector(reg_mats{i});
+    disp(pi);
 end
 
-% Las matrices han sido clasificadas
+%% 5. Resumen Final de Clasificación
+fprintf('\n=== RESUMEN FINAL DE CLASIFICACIÓN ===\n');
+fprintf('Absorbentes: %s\n', strjoin(true_abs_names, ', '));
+fprintf('Regulares:   %s\n', strjoin(reg_names, ', '));
+fprintf('Otras:       %s\n', strjoin(setdiff(names, [true_abs_names, reg_names]), ', '));
 
-fprintf('\n--- Análisis completado ---\n');
-undefined_matrices_names = {'Pe', 'Pi', 'Pl'};
+% -------------------------------------------------------------------------
+% MÉTODOS AUXILIARES
+% -------------------------------------------------------------------------
 
-fprintf('\n--- Matrices absorbentes: ---\n');
-for idx = 1:length(true_absorbing_names)
-    fprintf('%s\n', true_absorbing_names{idx});
-end
-
-fprintf('\n--- Matrices regulares: ---\n');
-for idx = 1:length(regular_matrices_names)
-    fprintf('%s\n', regular_matrices_names{idx});
-end
-
-fprintf('\n--- Matrices no absorbentes y no regulares: ---\n');
-for idx = 1:length(undefined_matrices_names)
-    fprintf('%s\n', undefined_matrices_names{idx});
-end
-
-% Métodos auxiliares
 function [F, Q] = calculate_fundamental_matrix(M)
     abs_states = [];
     n = size(M,1);
     for i = 1:n
+        % Identifica si el estado es puramente absorbente
         if M(i,i) == 1 && all(M(i,[1:i-1,i+1:n]) == 0)
-        abs_states(end+1) = i;
+            abs_states(end+1) = i;
         end
     end
     trans_states = setdiff(1:n, abs_states);
-
+    % Si hay estados transitorios, calcula la matriz F
     if isempty(trans_states)
-        Q = [];
-        F = [];
-    else
         Q = M(trans_states, trans_states);
         F = inv(eye(size(Q)) - Q);
     end
 end
 
-function [] = is_regular_matrix(M)
+function is_regular_matrix(M)
+    k_max = 50;
+    Mk = M;
     regular = false;
-    for k = 1:50
-        if all(M(:) > 0)
-            fprintf("Regular: si, k = %d\n", k);
+    for k = 1:k_max
+        if all(Mk(:) > 0)
+            fprintf('SÍ (k=%d)\n', k);
             regular = true;
             break;
         end
-        M = M*M;
+        Mk = Mk * M;
     end
-
-    if regular == false
-        fprintf("La matriz no es regular para k, en el rango: 1 <= k <= %d\n", k);
+    if ~regular
+        fprintf('NO (dentro del rango k=1:%d)\n', k_max);
     end
 end
 
 function pi = stationary_vector(P)
-    n = size(P,1);
-
-    % Sistema (P^T - I) * pi = 0
-    A = [P' - eye(n); ones(1,n)];
-    b = [zeros(n,1); 1];
-
-    % Resolver sistema
-    pi = A \ b;
-
-    % Devolver como fila
-    pi = pi.';
+    n = size(P, 1);
+    % Resolvemos (P' - I)pi' = 0 con la restricción suma(pi) = 1
+    A = [P' - eye(n); ones(1, n)];
+    b = [zeros(n, 1); 1];
+    pi = (A \ b)';
 end
