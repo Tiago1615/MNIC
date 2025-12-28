@@ -1,6 +1,7 @@
 % Ejercicio 31 - LABERINTO DEL RATÓN
 % Análisis de estados absorbentes y tiempos de tránsito
 % -------------------------------------------------------------------------
+clear; clc;
 
 % 1. Definición del Modelo
 % Estados: 1=A, 2=B, 3=C, 4=D, 5=E, 6=F

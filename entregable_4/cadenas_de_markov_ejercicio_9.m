@@ -1,5 +1,6 @@
 %% EJERCICIO 9: BARBERÍA
 % -------------------------------------------------------------------------
+clear; clc;
 
 % --- (a) Construcción de la Matriz de Transición ---
 % Definimos la matriz P donde P(i,j) es la probabilidad de pasar de i a j clientes.
